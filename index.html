@@ -1,17 +1,353 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>Food Rating Experiment</title>
-  <script src="jspsych/jspsych.js"></script>
-  <script src="jspsych/plugins/jspsych-html-button-response.js"></script>
-  <script src="jspsych/plugins/jspsych-image-button-response.js"></script>
-  <script src="jspsych/plugins/jspsych-html-keyboard-response.js"></script>
-  <script src="jspsych/plugins/jspsych-preload.js"></script>
-  <link rel="stylesheet" href="jspsych/css/jspsych.css">
-  <link rel="stylesheet" href="style.css">
+  <meta charset="UTF-8">
+  <title>Food Rating Test</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      text-align: center;
+      margin: 0;
+      padding: 20px;
+    }
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+    }
+    .item-image {
+      width: 400px;
+      height: 400px;
+      margin: 20px;
+    }
+    .comparison-container {
+      display: flex;
+      justify-content: center;
+      gap: 20px;
+    }
+    .rating-buttons button, .comparison-image {
+      cursor: pointer;
+      padding: 10px;
+      margin: 5px;
+    }
+    .comparison-image {
+      width: 400px;
+      height: 400px;
+      border: 20px solid transparent;
+    }
+    .comparison-image.red-circle {
+      border: 2px solid red;
+      border-radius: 50%;
+    }
+    .reminder {
+      color: red;
+      font-weight: bold;
+      margin-top: 10px;
+    }
+    .context-label {
+      font-size: 14px;
+      color: #555;
+      margin: 10px;
+    }
+    .rating-text{
+      font-size: 24px;
+      color: #000000
+    }
+  </style>
 </head>
 <body>
-  <div id="jspsych-target"></div>
-  <script src="experiment.js"></script>
+  <div class="container" id="experiment-container">
+    <h1 id="title"></h1>
+    <div id="content"></div>
+  </div>
+
+  <audio id="alert-sound" src="sounds/alert.mp3" preload="auto"></audio>
+
+  <script>
+    // Food items (replace with your 223 items)
+    const foodItems = [
+      { id: 1, name: 'Muz', image: 'img/banana.jpg' },
+      { id: 2, name: 'Ceri domates', image: 'img/cherry_tomatoes.jpg' },
+      { id: 3, name: 'Domates', image: 'img/tomatoes.jpg' },
+      { id: 4, name: 'Findik', image: 'img/findik.jpg' },
+      { id: 5, name: 'Pattis kizartmasi', image: 'img/fries.jpg' },
+      { id: 6, name: 'Cili Biberi', image: 'img/chili_pepper.jpg' },
+      // Add your 223 items here
+    ];
+
+    const reminderTimeout = 3000; // 3 seconds
+    let currentTrial = 0;
+    let ratings = {};
+    let chosenPairs = [];
+    let rejectedPairs = [];
+    let computerChosenPairs = [];
+    let finalRatings = {};
+    let timeoutCount = 0;
+    let reminderTimeoutId;
+
+    const alertSound = document.getElementById('alert-sound');
+    const container = document.getElementById('experiment-container');
+    const content = document.getElementById('content');
+
+    // Custom shuffle function
+    function shuffle(array) {
+      for (let i = array.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [array[i], array[j]] = [array[j], array[i]];
+      }
+      return array;
+    }
+
+    // Start experiment
+    function startExperiment() {
+      currentTrial = 0;
+      timeoutCount = 0;
+      showWelcome();
+    }
+
+    function showWelcome() {
+      document.getElementById('title').innerText = 'Welcome to the Food Rating Test';
+      content.innerHTML = `
+        <p>You will rate food items, make choices between them, and rate them again.</p>
+        <button onclick="startPart1()">Start</button>
+      `;
+    }
+
+    // Part 1: Initial Ratings
+    function startPart1() {
+      document.getElementById('title').innerText = 'Part 1: Rating Food Items';
+      currentTrial = 0;
+      showNextRating();
+    }
+
+    function showNextRating() {
+      if (currentTrial >= foodItems.length) {
+        startPart2();
+        return;
+      }
+
+      const item = foodItems[currentTrial];
+      content.innerHTML = `
+        <p>Please rate this item</p>
+        <img src="${item.image}" class="item-image" alt="${item.name}">
+        <div class="rating-buttons">
+          ${[1, 2, 3, 4, 5, 6, 7, 8].map(n => `<button onclick="rateItem(${item.id}, ${n})">${n}</button>`).join('')}
+        </div>
+        <div id="reminder"></div>
+      `;
+
+      startReminder();
+    }
+
+    function rateItem(id, rating) {
+      clearTimeout(reminderTimeoutId);
+      ratings[`${id}-${foodItems.find(item => item.id === id).name}`] = rating;
+      currentTrial++;
+      showNextRating();
+    }
+
+    // Part 2: Comparisons
+    function startPart2() {
+      document.getElementById('title').innerText = 'Part 2: Food Comparisons';
+      currentTrial = 0;
+      const trials = generateComparisonTrials();
+      showNextComparison(trials);
+    }
+
+    function generateComparisonTrials() {
+      const usedItems = new Set(); // Track used items by ID
+      let hardTrials = [], easyTrials = [], computerTrials = [];
+      let pairs = [];
+
+      // Hard trials (difference ≤ 2)
+      for (let i = 0; i < foodItems.length; i++) {
+        for (let j = i + 1; j < foodItems.length; j++) {
+          const id1 = foodItems[i].id, id2 = foodItems[j].id;
+          if (usedItems.has(id1) || usedItems.has(id2)) continue; // Skip if either item is used
+          const rating1 = Object.values(ratings).find((_, idx) => Object.keys(ratings)[idx].startsWith(`${id1}-`));
+          const rating2 = Object.values(ratings).find((_, idx) => Object.keys(ratings)[idx].startsWith(`${id2}-`));
+          const diff = Math.abs(rating1 - rating2);
+          if (diff <= 2) {
+            pairs.push([foodItems[i], foodItems[j]]);
+          }
+        }
+      }
+      pairs = shuffle(pairs);
+      hardTrials = pairs.slice(0, Math.min(30, pairs.length));
+      hardTrials.forEach(pair => {
+        usedItems.add(pair[0].id);
+        usedItems.add(pair[1].id);
+      });
+
+      // Easy trials (difference ≥ 4)
+      pairs = [];
+      for (let i = 0; i < foodItems.length; i++) {
+        for (let j = i + 1; j < foodItems.length; j++) {
+          const id1 = foodItems[i].id, id2 = foodItems[j].id;
+          if (usedItems.has(id1) || usedItems.has(id2)) continue; // Skip if either item is used
+          const rating1 = Object.values(ratings).find((_, idx) => Object.keys(ratings)[idx].startsWith(`${id1}-`));
+          const rating2 = Object.values(ratings).find((_, idx) => Object.keys(ratings)[idx].startsWith(`${id2}-`));
+          const diff = Math.abs(rating1 - rating2);
+          if (diff >= 4) {
+            pairs.push([foodItems[i], foodItems[j]]);
+          }
+        }
+      }
+      pairs = shuffle(pairs);
+      easyTrials = pairs.slice(0, Math.min(30, pairs.length));
+      easyTrials.forEach(pair => {
+        usedItems.add(pair[0].id);
+        usedItems.add(pair[1].id);
+      });
+
+      // Computer trials (random pairs from remaining items)
+      pairs = [];
+      const remainingItems = foodItems.filter(item => !usedItems.has(item.id));
+      const shuffledRemaining = shuffle([...remainingItems]);
+      for (let i = 0; i < shuffledRemaining.length - 1; i += 2) {
+        pairs.push([shuffledRemaining[i], shuffledRemaining[i + 1]]);
+      }
+      computerTrials = pairs.slice(0, Math.min(30, pairs.length));
+      computerTrials.forEach(pair => {
+        usedItems.add(pair[0].id);
+        usedItems.add(pair[1].id);
+      });
+
+      return [
+        ...hardTrials.map(pair => ({ type: 'hard', pair })),
+        ...easyTrials.map(pair => ({ type: 'easy', pair })),
+        ...computerTrials.map(pair => ({ type: 'computer', pair, highlightLeft: Math.random() > 0.5 }))
+      ];
+    }
+
+    function showNextComparison(trials) {
+      if (currentTrial >= trials.length) {
+        startPart3();
+        return;
+      }
+
+      const trial = trials[currentTrial];
+      const { type, pair, highlightLeft } = trial;
+      const [left, right] = pair;
+
+      const titleText = type === 'computer' ? 'Please choose the item highlighted in red' : 'Please choose one';
+      document.getElementById('title').innerText = titleText;
+
+      content.innerHTML = `
+        <div class="comparison-container">
+          <img src="${left.image}" class="comparison-image ${type === 'computer' && highlightLeft ? 'red-circle' : ''}" 
+               onclick="chooseItem(${left.id}, ${right.id}, '${type}', ${highlightLeft || false})" alt="${left.name}">
+          <img src="${right.image}" class="comparison-image ${type === 'computer' && !highlightLeft ? 'red-circle' : ''}" 
+               onclick="chooseItem(${right.id}, ${left.id}, '${type}', ${highlightLeft || false})" alt="${right.name}">
+        </div>
+        <div id="reminder"></div>
+      `;
+
+      startReminder();
+    }
+
+    function chooseItem(chosenId, rejectedId, type, highlightLeft) {
+      clearTimeout(reminderTimeoutId);
+      const chosenKey = `${chosenId}-${foodItems.find(item => item.id === chosenId).name}`;
+      const rejectedKey = `${rejectedId}-${foodItems.find(item => item.id === rejectedId).name}`;
+      if (type === 'computer') {
+        const correctId = highlightLeft ? rejectedId : chosenId;
+        computerChosenPairs.push(`${correctId}-${foodItems.find(item => item.id === correctId).name}`);
+      } else {
+        chosenPairs.push(chosenKey);
+        rejectedPairs.push(rejectedKey);
+      }
+      currentTrial++;
+      showNextComparison(generateComparisonTrials());
+    }
+
+    // Part 3: Final Ratings
+    function startPart3() {
+      document.getElementById('title').innerText = 'Part 3: Final Ratings';
+      currentTrial = 0;
+      showNextFinalRating();
+    }
+
+    function showNextFinalRating() {
+      if (currentTrial >= foodItems.length) {
+        endExperiment();
+        return;
+      }
+
+      const item = foodItems[currentTrial];
+      const itemKey = `${item.id}-${item.name}`;
+      const context = chosenPairs.includes(itemKey) ? 'You chose this' :
+                      rejectedPairs.includes(itemKey) ? 'You rejected this' :
+                      computerChosenPairs.includes(itemKey) ? 'The computer chose this' : '';
+
+      content.innerHTML = `
+        <p>Please rate this item</p>
+        <img src="${item.image}" class="item-image" alt="${item.name}">
+        <div class="context-label">${context}</div>
+        <div class="rating-buttons">
+          ${[1, 2, 3, 4, 5, 6, 7, 8].map(n => `<button onclick="rateFinalItem(${item.id}, ${n})">${n}</button>`).join('')}
+        </div>
+        <div id="reminder"></div>
+      `;
+
+      startReminder();
+    }
+
+    function rateFinalItem(id, rating) {
+      clearTimeout(reminderTimeoutId);
+      finalRatings[`${id}-${foodItems.find(item => item.id === id).name}`] = rating;
+      currentTrial++;
+      showNextFinalRating();
+    }
+
+    // Reminder logic with timeout counting
+    function startReminder() {
+      reminderTimeoutId = setTimeout(() => {
+        const reminderDiv = document.getElementById('reminder');
+        if (!reminderDiv.innerText) {
+          reminderDiv.innerText = 'Please choose';
+          alertSound.play();
+          timeoutCount++;
+        }
+      }, reminderTimeout);
+    }
+
+    // End experiment
+    function endExperiment() {
+      document.getElementById('title').innerText = 'Experiment Complete';
+      content.innerHTML = '<p>Thank you for participating!</p>';
+      saveData();
+    }
+
+    // Save data as JSON with timeout count, id-name keys, and rating differences
+    function saveData() {
+      const ratingDifferences = {};
+      for (const key in finalRatings) {
+        if (ratings[key] !== undefined) {
+          ratingDifferences[key] = finalRatings[key] - ratings[key];
+        }
+      }
+
+      const data = {
+        initialRatings: ratings,
+        chosenPairs,
+        rejectedPairs,
+        computerChosenPairs,
+        finalRatings,
+        timeoutCount,
+        ratingDifferences
+      };
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'experiment-data.json';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    }
+
+    // Start the experiment
+    startExperiment();
+  </script>
 </body>
 </html>
