@@ -1,0 +1,68 @@
+.jspsych-btn {
+    padding: 10px 15px;
+    margin: 5px;
+    font-size: 18px;
+    cursor: pointer;
+  }
+  
+  .reminder {
+    color: red;
+    font-size: 24px;
+    font-weight: bold;
+  }
+  
+  .comparison-container {
+    display: flex;
+    justify-content: space-around;
+  }
+  
+  .comparison-image {
+    max-width: 300px;
+    cursor: pointer;
+  }
+  
+  .red-circle {
+    border: 5px solid red;
+    border-radius: 50%;
+    padding: 10px;
+  }
+  
+  .context-label {
+    position: absolute;
+    right: 20px;
+    top: 50%;
+    font-size: 18px;
+    font-weight: bold;
+  }
+
+
+  /* Add responsive design */
+@media (max-width: 768px) {
+  .comparison-image {
+      max-width: 150px;
+  }
+  
+  .jspsych-btn {
+      padding: 8px 12px;
+      font-size: 16px;
+  }
+}
+
+/* Add animations */
+@keyframes pulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+  100% { transform: scale(1); }
+}
+
+.reminder {
+  animation: pulse 1s infinite;
+}
+
+#loading {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 24px;
+}
