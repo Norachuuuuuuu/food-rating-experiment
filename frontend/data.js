@@ -1,4 +1,3 @@
-let numItems = null;
 const fullFoodItems = [
     { id: 1, name: 'Muz', image: 'img/banana.jpg' },
     { id: 2, name: 'Ceri domates', image: 'img/cherry_tomatoes.jpg' },
