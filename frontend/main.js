@@ -1,6 +1,6 @@
 // main.js
 let foodItems = [];
-const reminderTimeout = 3000;
+const reminderTimeout = 5000;
 let currentTrial = 0;
 let ratings = {};
 let chosenPairs = [];
@@ -92,7 +92,7 @@ function showNextRating() {
     const item = foodItems[currentTrial];
     currentItemId = item.id;
     content.innerHTML = `
-        <p class="text-gray-700 mb-4">Please rate this item (Press 1-8)</p>
+        <p class="text-grey-600 text-xl text-center">Please rate this item (Press 1-8)</p>
         <img src="${item.image}" class="item-image mx-auto block mb-4" alt="${item.name}">
         <div class="rating-buttons flex justify-center gap-2 flex-wrap">
             ${[1, 2, 3, 4, 5, 6, 7, 8].map(n => `
@@ -102,7 +102,7 @@ function showNextRating() {
                 </button>
             `).join('')}
         </div>
-        <div id="reminder" class="text-yellow-600 mt-2"></div>
+        <div id="reminder" class="text-red-600 text-3xl font-bold text-center"></div>
     `;
     startReminder();
 }
@@ -212,7 +212,7 @@ function showNextComparison() {
             <img src="${right.image}" class="comparison-image ${type === 'computer' && !highlightLeft ? 'red-circle' : ''}" 
                  onclick="chooseItem(${right.id}, ${left.id}, '${type}', ${highlightLeft || false})" alt="${right.name}">
         </div>
-        <div id="reminder" class="text-yellow-600 mt-2 text-center"></div>
+        <div id="reminder" class="text-red-600 text-3xl font-bold text-center"></div>
     `;
     startReminder();
 }
@@ -261,7 +261,7 @@ function showNextFinalRating() {
                 </button>
             `).join('')}
         </div>
-        <div id="reminder" class="text-yellow-600 mt-2"></div>
+        <div id="reminder" class="text-red-600 text-3xl font-bold text-center"></div>
     `;
     startReminder();
 }
